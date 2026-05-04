@@ -19,27 +19,26 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    /* Very visible size bump */
     html, body, [data-testid="stAppViewContainer"], .stApp {
-        font-size: 24px !important;
+        font-size: 16px !important;
     }
     [data-testid="stAppViewContainer"] p,
     [data-testid="stAppViewContainer"] li,
     [data-testid="stAppViewContainer"] label,
     [data-testid="stAppViewContainer"] span,
     [data-testid="stAppViewContainer"] div {
-        font-size: 1.1em !important;
+        font-size: 1em !important;
     }
-    .stApp h1 { font-size: 3.2rem !important; }
-    .stApp h2 { font-size: 2.5rem !important; }
-    .stApp h3 { font-size: 2rem !important; }
+    .stApp h1 { font-size: 2.25rem !important; }
+    .stApp h2 { font-size: 1.65rem !important; }
+    .stApp h3 { font-size: 1.3rem !important; }
     .stButton > button, .stDownloadButton > button {
-        font-size: 1.15em !important;
-        padding: 0.9rem 1.3rem !important;
+        font-size: 1rem !important;
+        padding: 0.55rem 0.95rem !important;
     }
-    [data-testid="stMetricLabel"] { font-size: 1.2em !important; }
-    [data-testid="stMetricValue"] { font-size: 2.2em !important; }
-    [data-testid="stDataFrame"] * { font-size: 1.05em !important; }
+    [data-testid="stMetricLabel"] { font-size: 1rem !important; }
+    [data-testid="stMetricValue"] { font-size: 1.5rem !important; }
+    [data-testid="stDataFrame"] * { font-size: 0.95rem !important; }
     table.result-table {
         width: 100%;
         border-collapse: collapse;
@@ -49,7 +48,7 @@ st.markdown(
     table.result-table th, table.result-table td {
         border: 1px solid rgba(255, 255, 255, 0.15);
         padding: 0.75rem 0.9rem;
-        font-size: 1.15rem !important;
+        font-size: 1rem !important;
         line-height: 1.4;
         text-align: left;
         white-space: nowrap;
