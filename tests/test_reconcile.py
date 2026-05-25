@@ -3,13 +3,15 @@ Tests for the financial reconciliation ETL pipeline.
 Run with:  pytest tests/test_reconcile.py -v
 """
 
+from io import BytesIO, StringIO
+
 import pandas as pd
 import pytest
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-from reconcile import validate, transform, reconcile, _clean_amount
+from reconcile import validate, transform, reconcile, _clean_amount, load_ledger_csv
 
 
 # Fixtures
@@ -49,6 +51,25 @@ class TestCleanAmount:
     def test_integer(self):
         assert _clean_amount(500) == 500.0
 
+    def test_parentheses_negative(self):
+        assert _clean_amount("($1,234.56)") == -1234.56
+
+
+# load_ledger_csv
+
+class TestLoadLedgerCsv:
+    def test_detects_semicolon_delimiter(self):
+        csv_data = StringIO("ref;description;amount\nA;Test;100\n")
+        result = load_ledger_csv(csv_data)
+        assert list(result.columns) == ["ref", "description", "amount"]
+        assert result["amount"].iloc[0] == 100
+
+    def test_reads_utf8_bom(self):
+        csv_data = BytesIO("ref,description,amount\nA,Café,100\n".encode("utf-8-sig"))
+        result = load_ledger_csv(csv_data)
+        assert list(result.columns) == ["ref", "description", "amount"]
+        assert result["description"].iloc[0] == "Café"
+
 
 # validate
 
@@ -60,6 +81,11 @@ class TestValidate:
 
     def test_alias_columns(self):
         df = pd.DataFrame({"invoice_ref": ["A"], "narrative": ["Test"], "value": [100]})
+        result, issues = validate(df, "test")
+        assert list(result.columns) == ["ref", "desc", "amount"]
+
+    def test_alias_columns_with_spaces_and_punctuation(self):
+        df = pd.DataFrame({"Invoice Ref": ["A"], "Memo": ["Test"], "Total Amount": [100]})
         result, issues = validate(df, "test")
         assert list(result.columns) == ["ref", "desc", "amount"]
 

@@ -8,14 +8,42 @@ Usage:
 """
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
 import pandas as pd
+from pandas.errors import ParserError
 
 
 
 # STEP 1 — EXTRACT
+
+
+def load_ledger_csv(filepath_or_buffer) -> pd.DataFrame:
+    """Load a ledger CSV using common export delimiters and encodings."""
+    read_attempts = [
+        {"sep": None, "engine": "python", "encoding": "utf-8-sig"},
+        {"sep": None, "engine": "python", "encoding": "utf-8"},
+        {"sep": None, "engine": "python", "encoding": "cp1252"},
+        {"sep": None, "engine": "python", "encoding": "latin1"},
+    ]
+    errors = []
+
+    for options in read_attempts:
+        try:
+            if hasattr(filepath_or_buffer, "seek"):
+                filepath_or_buffer.seek(0)
+            df = pd.read_csv(filepath_or_buffer, **options)
+            df.columns = [str(column).strip().lstrip("\ufeff") for column in df.columns]
+            return df
+        except (UnicodeDecodeError, ParserError, ValueError) as exc:
+            errors.append(str(exc))
+
+    raise ValueError(
+        "[EXTRACT] Could not read CSV file. Please check that it is a valid CSV export. "
+        f"Last error: {errors[-1] if errors else 'unknown error'}"
+    )
 
 
 def extract(filepath: str, source_name: str) -> pd.DataFrame:
@@ -24,7 +52,7 @@ def extract(filepath: str, source_name: str) -> pd.DataFrame:
     if not path.exists():
         raise FileNotFoundError(f"[EXTRACT] File not found: {filepath}")
 
-    df = pd.read_csv(path)
+    df = load_ledger_csv(path)
     print(f"[EXTRACT] {source_name}: {len(df)} records loaded from '{path.name}'")
     print(f"          Columns detected: {list(df.columns)}")
     return df
@@ -34,18 +62,24 @@ def extract(filepath: str, source_name: str) -> pd.DataFrame:
 # STEP 2 — VALIDATE
 
 REQUIRED_COLUMNS = {
-    "ref":    ["ref", "reference", "invoice_ref", "inv_ref", "id", "transaction_id"],
+    "ref":    ["ref", "reference", "invoice_ref", "inv_ref", "invoice_number", "id", "transaction_id"],
     "desc":   ["desc", "description", "narrative", "details", "memo", "name"],
-    "amount": ["amount", "amt", "value", "debit", "credit", "total", "sum"],
+    "amount": ["amount", "amt", "value", "debit", "credit", "total", "total_amount", "transaction_amount", "sum"],
 }
+
+
+def _normalise_column_name(column: object) -> str:
+    """Normalise source headers so common CSV exports map cleanly."""
+    return re.sub(r"[^a-z0-9]+", "_", str(column).strip().lower()).strip("_")
 
 
 def _detect_column(df: pd.DataFrame, candidates: list[str], label: str) -> str:
     """Find the best matching column name from a list of candidates."""
-    cols_lower = {c.lower(): c for c in df.columns}
+    cols_lower = {_normalise_column_name(c): c for c in df.columns}
     for candidate in candidates:
-        if candidate.lower() in cols_lower:
-            return cols_lower[candidate.lower()]
+        normalised = _normalise_column_name(candidate)
+        if normalised in cols_lower:
+            return cols_lower[normalised]
     raise ValueError(
         f"[VALIDATE] Could not find a '{label}' column. "
         f"Expected one of: {candidates}. Got: {list(df.columns)}"
@@ -92,10 +126,17 @@ def _clean_amount(value) -> float:
     """Strip currency symbols, commas, whitespace and cast to float."""
     if isinstance(value, (int, float)):
         return float(value)
-    cleaned = str(value).replace(",", "").replace(" ", "")
-    for symbol in ["€", "$", "£", "¥", "CHF", "USD", "EUR", "GBP"]:
+    cleaned = str(value).strip()
+    is_negative = cleaned.startswith("(") and cleaned.endswith(")")
+    cleaned = cleaned.strip("()").replace(",", "").replace(" ", "")
+    for symbol in [
+        "EUR", "GBP", "USD", "CHF",
+        "$", "\u20ac", "\u00a3", "\u00a5",
+        "\u00e2\u201a\u00ac", "\u00c2\u00a3", "\u00c2\u00a5",
+    ]:
         cleaned = cleaned.replace(symbol, "")
-    return float(cleaned)
+    amount = float(cleaned)
+    return -amount if is_negative else amount
 
 
 def transform(df: pd.DataFrame, source_name: str) -> pd.DataFrame:

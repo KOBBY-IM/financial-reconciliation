@@ -7,7 +7,7 @@ import pandas as pd
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
-from reconcile import reconcile, transform, validate  # noqa: E402
+from reconcile import load_ledger_csv, reconcile, transform, validate  # noqa: E402
 
 
 st.set_page_config(
@@ -73,7 +73,7 @@ SAMPLE_B_PATH = Path("data/sample/bank_statement.csv")
 def load_sample_data() -> tuple[pd.DataFrame, pd.DataFrame]:
     if not SAMPLE_A_PATH.exists() or not SAMPLE_B_PATH.exists():
         raise FileNotFoundError("Sample files not found in data/sample/")
-    return pd.read_csv(SAMPLE_A_PATH), pd.read_csv(SAMPLE_B_PATH)
+    return load_ledger_csv(SAMPLE_A_PATH), load_ledger_csv(SAMPLE_B_PATH)
 
 
 def build_template_csv(source_label: str) -> bytes:
@@ -160,10 +160,18 @@ else:
     col_a, col_b = st.columns(2)
     with col_a:
         file_a = st.file_uploader("Upload Source A (CSV)", type=["csv"])
-        df_raw_a = pd.read_csv(file_a) if file_a is not None else None
+        try:
+            df_raw_a = load_ledger_csv(file_a) if file_a is not None else None
+        except ValueError as exc:
+            st.error(f"Source A could not be read: {exc}")
+            st.stop()
     with col_b:
         file_b = st.file_uploader("Upload Source B (CSV)", type=["csv"])
-        df_raw_b = pd.read_csv(file_b) if file_b is not None else None
+        try:
+            df_raw_b = load_ledger_csv(file_b) if file_b is not None else None
+        except ValueError as exc:
+            st.error(f"Source B could not be read: {exc}")
+            st.stop()
 
     if df_raw_a is None or df_raw_b is None:
         st.info("Upload both source files to continue.")
